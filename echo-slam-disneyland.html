@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo Slam — Disneyland</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Orbitron:wght@700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    background: #0a0a12;
+    font-family: 'Orbitron', sans-serif;
+    user-select: none;
+    cursor: crosshair;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+  }
+
+  #ui-overlay {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #mana-bar-container {
+    width: 280px;
+    height: 18px;
+    background: rgba(0,0,0,0.7);
+    border: 2px solid #3af;
+    border-radius: 9px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #mana-bar {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #0055ff, #00ccff, #55eeff);
+    border-radius: 7px;
+    transition: width 0.1s;
+    box-shadow: 0 0 12px #0af inset, 0 0 20px #0af;
+  }
+
+  #mana-text {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 10px;
+    color: #fff;
+    text-shadow: 0 0 4px #000;
+    letter-spacing: 1px;
+  }
+
+  #slam-btn {
+    width: 220px;
+    height: 64px;
+    background: linear-gradient(180deg, #c8a020, #8b6914);
+    border: 3px solid #ffe066;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    cursor: pointer;
+    text-shadow: 0 0 10px #000, 0 2px 4px rgba(0,0,0,0.8);
+    box-shadow: 0 0 30px rgba(255,200,0,0.3), 0 4px 15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #slam-btn::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle, rgba(255,255,200,0.2) 0%, transparent 60%);
+    animation: btnShine 3s infinite;
+  }
+
+  @keyframes btnShine {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(180deg); }
+  }
+
+  #slam-btn:hover {
+    background: linear-gradient(180deg, #e0b830, #a07a18);
+    box-shadow: 0 0 50px rgba(255,200,0,0.5), 0 4px 15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+    transform: scale(1.05);
+  }
+
+  #slam-btn:active {
+    transform: scale(0.95);
+  }
+
+  #slam-btn.cooldown {
+    background: linear-gradient(180deg, #444, #222);
+    border-color: #666;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  #kill-counter {
+    position: fixed;
+    top: 20px;
+    right: 30px;
+    z-index: 10;
+    color: #ff4444;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    text-shadow: 0 0 20px #f00, 0 0 40px #f00;
+    letter-spacing: 3px;
+  }
+
+  #kill-counter span {
+    color: #fff;
+    font-size: 14px;
+    text-shadow: 0 0 10px rgba(255,255,255,0.5);
+  }
+
+  #title {
+    position: fixed;
+    top: 20px;
+    left: 30px;
+    z-index: 10;
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 22px;
+    font-weight: 900;
+    color: #ffe066;
+    text-shadow: 0 0 20px rgba(255,200,0,0.5), 0 2px 4px rgba(0,0,0,0.8);
+    letter-spacing: 3px;
+  }
+
+  #title small {
+    display: block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    color: #88aacc;
+    letter-spacing: 5px;
+    margin-top: 4px;
+    font-weight: 700;
+  }
+
+  #hint {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 2px;
+    pointer-events: none;
+    transition: opacity 0.5s;
+  }
+
+  .damage-number {
+    position: fixed;
+    z-index: 20;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    color: #ff3333;
+    text-shadow: 0 0 6px #000, 0 0 12px #f00;
+    pointer-events: none;
+    animation: floatUp 1.2s ease-out forwards;
+  }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    60% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-80px) scale(1.3); }
+  }
+
+  #echo-text {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 25;
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 72px;
+    font-weight: 900;
+    color: #ffe066;
+    text-shadow: 0 0 40px #c80, 0 0 80px #f80, 0 0 120px #fa0;
+    opacity: 0;
+    pointer-events: none;
+    letter-spacing: 10px;
+  }
+
+  #cooldown-text {
+    font-size: 11px;
+    color: #aaa;
+    letter-spacing: 2px;
+  }
+
+  .screen-flash {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 15;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(255,200,50,0.6) 0%, rgba(255,100,0,0.3) 40%, transparent 70%);
+    animation: flash 0.6s ease-out forwards;
+  }
+
+  @keyframes flash {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="title">
+  ECHO SLAM
+  <small>DISNEYLAND EDITION</small>
+</div>
+
+<div id="kill-counter">
+  0 <span>KILLS</span>
+</div>
+
+<div id="hint">CLICK THE BUTTON OR PRESS [R] TO ECHO SLAM</div>
+
+<div id="echo-text">ECHO SLAM!</div>
+
+<div id="ui-overlay">
+  <div id="mana-bar-container">
+    <div id="mana-bar"></div>
+    <div id="mana-text">MANA</div>
+  </div>
+  <button id="slam-btn">⚡ ECHO SLAM</button>
+  <div id="cooldown-text"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── GAME STATE ───
+const CREEP_EMOJIS = ['🧒','👦','👧','🧒','👶','🐭','🏰','🎠','🎡','🎢','🧸','🤡','🎪','👸','🤴','🧙','🦸','🧚','🎃','🐻','🦊','🐰','🐸','🎅','⛄','🤖','👽','🧟','🎭','🃏','🐉','🦄','🐲','👻','💀','🎈','🎁','🍭','🍦','🍩'];
+
+let creeps = [];
+let particles = [];
+let shockwaves = [];
+let cracks = [];
+let kills = 0;
+let mana = 100;
+let cooldown = 0;
+let playerX, playerY;
+let slamActive = false;
+let cameraShake = 0;
+let hintVisible = true;
+
+// ─── EARTHSHAKER PLAYER ───
+playerX = W / 2;
+playerY = H / 2;
+
+// ─── CREEP CLASS ───
+class Creep {
+  constructor() {
+    this.reset(true);
+    this.alive = true;
+    this.opacity = 1;
+    this.velX = 0;
+    this.velY = 0;
+    this.knocked = false;
+    this.rotation = 0;
+    this.rotSpeed = 0;
+    this.scale = 0.8 + Math.random() * 0.6;
+    this.baseSpeed = 0.3 + Math.random() * 0.8;
+    this.wanderAngle = Math.random() * Math.PI * 2;
+    this.wanderTimer = Math.random() * 200;
+  }
+
+  reset(initial) {
+    if (initial) {
+      this.x = Math.random() * W;
+      this.y = Math.random() * H;
+    } else {
+      const side = Math.floor(Math.random() * 4);
+      if (side === 0) { this.x = -30; this.y = Math.random() * H; }
+      else if (side === 1) { this.x = W + 30; this.y = Math.random() * H; }
+      else if (side === 2) { this.x = Math.random() * W; this.y = -30; }
+      else { this.x = Math.random() * W; this.y = H + 30; }
+    }
+    this.emoji = CREEP_EMOJIS[Math.floor(Math.random() * CREEP_EMOJIS.length)];
+    this.alive = true;
+    this.opacity = 1;
+    this.velX = 0;
+    this.velY = 0;
+    this.knocked = false;
+    this.rotation = 0;
+    this.rotSpeed = 0;
+    this.scale = 0.8 + Math.random() * 0.6;
+    this.baseSpeed = 0.3 + Math.random() * 0.8;
+    this.wanderAngle = Math.random() * Math.PI * 2;
+    this.wanderTimer = Math.random() * 200;
+  }
+
+  update() {
+    if (this.knocked) {
+      this.velX *= 0.96;
+      this.velY *= 0.96;
+      this.x += this.velX;
+      this.y += this.velY;
+      this.rotation += this.rotSpeed;
+      this.rotSpeed *= 0.98;
+      this.opacity -= 0.015;
+      if (this.opacity <= 0) {
+        this.reset(false);
+      }
+    } else {
+      this.wanderTimer--;
+      if (this.wanderTimer <= 0) {
+        this.wanderAngle += (Math.random() - 0.5) * 1.5;
+        this.wanderTimer = 60 + Math.random() * 120;
+      }
+      this.x += Math.cos(this.wanderAngle) * this.baseSpeed;
+      this.y += Math.sin(this.wanderAngle) * this.baseSpeed;
+
+      if (this.x < -50) this.x = W + 50;
+      if (this.x > W + 50) this.x = -50;
+      if (this.y < -50) this.y = H + 50;
+      if (this.y > H + 50) this.y = -50;
+    }
+  }
+
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.opacity;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    ctx.font = `${Math.floor(28 * this.scale)}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.emoji, 0, 0);
+
+    if (!this.knocked) {
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = 5;
+    }
+    ctx.restore();
+  }
+}
+
+// ─── PARTICLE ───
+class Particle {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 8;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.life = 1;
+    this.decay = 0.01 + Math.random() * 0.03;
+    this.size = 2 + Math.random() * 5;
+    this.color = color || `hsl(${30 + Math.random() * 30}, 100%, ${50 + Math.random() * 30}%)`;
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vx *= 0.98;
+    this.vy *= 0.98;
+    this.life -= this.decay;
+  }
+
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.life;
+    ctx.fillStyle = this.color;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ─── SHOCKWAVE ───
+class Shockwave {
+  constructor(x, y, delay) {
+    this.x = x;
+    this.y = y;
+    this.radius = 0;
+    this.maxRadius = Math.max(W, H) * 0.9;
+    this.speed = 8 + Math.random() * 4;
+    this.opacity = 1;
+    this.delay = delay || 0;
+    this.lineWidth = 4 + Math.random() * 6;
+    this.color = `hsl(${25 + Math.random() * 30}, 100%, 60%)`;
+  }
+
+  update() {
+    if (this.delay > 0) { this.delay--; return; }
+    this.radius += this.speed;
+    this.opacity = 1 - (this.radius / this.maxRadius);
+  }
+
+  draw() {
+    if (this.delay > 0 || this.opacity <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = this.opacity * 0.7;
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = this.lineWidth * this.opacity;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ─── GROUND CRACK ───
+class Crack {
+  constructor(x, y) {
+    this.segments = [];
+    let cx = x, cy = y;
+    const angle = Math.random() * Math.PI * 2;
+    const len = 5 + Math.floor(Math.random() * 12);
+    for (let i = 0; i < len; i++) {
+      const a = angle + (Math.random() - 0.5) * 1.2;
+      const d = 8 + Math.random() * 15;
+      const nx = cx + Math.cos(a) * d;
+      const ny = cy + Math.sin(a) * d;
+      this.segments.push({x: cx, y: cy, ex: nx, ey: ny});
+      cx = nx;
+      cy = ny;
+    }
+    this.opacity = 1;
+    this.decay = 0.003 + Math.random() * 0.005;
+  }
+
+  update() {
+    this.opacity -= this.decay;
+  }
+
+  draw() {
+    if (this.opacity <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = this.opacity * 0.6;
+    ctx.strokeStyle = '#553300';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#ff8800';
+    ctx.shadowBlur = 4;
+    for (const s of this.segments) {
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.ex, s.ey);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+// ─── INIT CREEPS ───
+function spawnCreeps(count) {
+  for (let i = 0; i < count; i++) {
+    creeps.push(new Creep());
+  }
+}
+spawnCreeps(80);
+
+// ─── GROUND TILES ───
+const GROUND_COLORS = ['#1a1a2e', '#16213e', '#1a1a30', '#0f1a2e', '#1e1e3a'];
+
+function drawGround() {
+  ctx.fillStyle = '#0d0d1a';
+  ctx.fillRect(0, 0, W, H);
+
+  // park paths
+  ctx.save();
+  ctx.strokeStyle = 'rgba(60, 50, 40, 0.3)';
+  ctx.lineWidth = 40;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(W/2, 0);
+  ctx.lineTo(W/2, H);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, H/2);
+  ctx.lineTo(W, H/2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(W/2, H/2, 200, 0, Math.PI*2);
+  ctx.stroke();
+
+  // decorative dots
+  ctx.fillStyle = 'rgba(40, 35, 30, 0.2)';
+  for (let i = 0; i < 100; i++) {
+    const x = (i * 137.5) % W;
+    const y = (i * 97.3) % H;
+    ctx.beginPath();
+    ctx.arc(x, y, 15 + (i % 10), 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // castle silhouette hint
+  ctx.fillStyle = 'rgba(30, 25, 50, 0.4)';
+  const castleX = W/2, castleY = H * 0.15;
+  ctx.beginPath();
+  ctx.moveTo(castleX - 80, castleY + 60);
+  ctx.lineTo(castleX - 80, castleY);
+  ctx.lineTo(castleX - 60, castleY - 30);
+  ctx.lineTo(castleX - 60, castleY);
+  ctx.lineTo(castleX - 30, castleY);
+  ctx.lineTo(castleX - 20, castleY - 50);
+  ctx.lineTo(castleX - 10, castleY);
+  ctx.lineTo(castleX + 10, castleY);
+  ctx.lineTo(castleX + 20, castleY - 50);
+  ctx.lineTo(castleX + 30, castleY);
+  ctx.lineTo(castleX + 60, castleY);
+  ctx.lineTo(castleX + 60, castleY - 30);
+  ctx.lineTo(castleX + 80, castleY);
+  ctx.lineTo(castleX + 80, castleY + 60);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// ─── DRAW PLAYER (EARTHSHAKER) ───
+function drawPlayer() {
+  ctx.save();
+  ctx.translate(playerX, playerY);
+
+  // totem glow
+  ctx.shadowColor = '#ff8800';
+  ctx.shadowBlur = slamActive ? 40 : 15;
+  ctx.font = '42px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🔨', 0, 0);
+
+  // aura
+  const auraSize = 30 + Math.sin(Date.now() * 0.005) * 5;
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = '#ff8800';
+  ctx.beginPath();
+  ctx.arc(0, 0, auraSize, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ─── ECHO SLAM ───
+function echoSlam() {
+  if (cooldown > 0 || mana < 100) return;
+
+  slamActive = true;
+  cameraShake = 30;
+  hintVisible = false;
+  document.getElementById('hint').style.opacity = '0';
+
+  // flash
+  const flash = document.createElement('div');
+  flash.className = 'screen-flash';
+  document.body.appendChild(flash);
+  setTimeout(() => flash.remove(), 700);
+
+  // echo text
+  const echoText = document.getElementById('echo-text');
+  echoText.style.opacity = '1';
+  echoText.style.transition = 'none';
+  echoText.style.transform = 'translate(-50%, -50%) scale(0.5)';
+  requestAnimationFrame(() => {
+    echoText.style.transition = 'all 0.8s cubic-bezier(0.2, 0, 0.1, 1)';
+    echoText.style.transform = 'translate(-50%, -50%) scale(1.5)';
+    echoText.style.opacity = '0';
+  });
+
+  // shockwaves
+  for (let i = 0; i < 6; i++) {
+    shockwaves.push(new Shockwave(playerX, playerY, i * 8));
+  }
+
+  // ground cracks
+  for (let i = 0; i < 25; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 20 + Math.random() * 200;
+    cracks.push(new Crack(
+      playerX + Math.cos(angle) * dist,
+      playerY + Math.sin(angle) * dist
+    ));
+  }
+
+  // epicenter particles
+  for (let i = 0; i < 60; i++) {
+    particles.push(new Particle(playerX, playerY, `hsl(${20 + Math.random() * 40}, 100%, ${40 + Math.random() * 40}%)`));
+  }
+
+  // hit creeps with echoes
+  let slamKills = 0;
+  creeps.forEach(c => {
+    if (!c.alive || c.knocked) return;
+    const dx = c.x - playerX;
+    const dy = c.y - playerY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+
+    // echo damage scales with nearby creeps (just like Dota!)
+    const force = Math.max(3, 25 - dist * 0.02);
+    c.velX = Math.cos(angle) * force;
+    c.velY = Math.sin(angle) * force;
+    c.knocked = true;
+    c.rotSpeed = (Math.random() - 0.5) * 0.4;
+    slamKills++;
+
+    // blood/impact particles per creep
+    for (let p = 0; p < 5; p++) {
+      particles.push(new Particle(c.x, c.y, '#ff4444'));
+    }
+
+    // damage numbers
+    setTimeout(() => {
+      const dmgEl = document.createElement('div');
+      dmgEl.className = 'damage-number';
+      const echoDmg = Math.floor(160 + slamKills * 70 + Math.random() * 50);
+      dmgEl.textContent = echoDmg;
+      dmgEl.style.left = c.x + 'px';
+      dmgEl.style.top = c.y + 'px';
+      dmgEl.style.fontSize = (16 + Math.min(echoDmg / 50, 20)) + 'px';
+      document.body.appendChild(dmgEl);
+      setTimeout(() => dmgEl.remove(), 1300);
+    }, dist * 1.5);
+  });
+
+  kills += slamKills;
+  document.getElementById('kill-counter').innerHTML = kills + ' <span>KILLS</span>';
+
+  // mana cost
+  mana = 0;
+  cooldown = 300; // 5 seconds at 60fps
+
+  // sound simulation via oscillator
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // initial slam
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.5);
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.8);
+
+    // echo hits
+    for (let i = 0; i < 4; i++) {
+      const osc2 = audioCtx.createOscillator();
+      const g2 = audioCtx.createGain();
+      osc2.type = 'square';
+      osc2.frequency.setValueAtTime(50 + i * 10, audioCtx.currentTime + i * 0.12);
+      osc2.frequency.exponentialRampToValueAtTime(15, audioCtx.currentTime + i * 0.12 + 0.3);
+      g2.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.12);
+      g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.12 + 0.3);
+      osc2.connect(g2);
+      g2.connect(audioCtx.destination);
+      osc2.start(audioCtx.currentTime + i * 0.12);
+      osc2.stop(audioCtx.currentTime + i * 0.12 + 0.3);
+    }
+  } catch(e) {}
+
+  setTimeout(() => { slamActive = false; }, 500);
+}
+
+// ─── MOUSE MOVE → PLAYER ───
+canvas.addEventListener('mousemove', (e) => {
+  playerX = e.clientX;
+  playerY = e.clientY;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  playerX = e.touches[0].clientX;
+  playerY = e.touches[0].clientY;
+}, { passive: false });
+
+// ─── CONTROLS ───
+document.getElementById('slam-btn').addEventListener('click', echoSlam);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'r' || e.key === 'R' || e.key === ' ') echoSlam();
+});
+
+// ─── RESPAWN TIMER ───
+setInterval(() => {
+  const alive = creeps.filter(c => !c.knocked).length;
+  if (alive < 60) {
+    for (let i = 0; i < 3; i++) {
+      creeps.push(new Creep());
+      creeps[creeps.length-1].reset(false);
+    }
+  }
+}, 500);
+
+// ─── MAIN LOOP ───
+function update() {
+  // camera shake
+  let shakeX = 0, shakeY = 0;
+  if (cameraShake > 0) {
+    shakeX = (Math.random() - 0.5) * cameraShake;
+    shakeY = (Math.random() - 0.5) * cameraShake;
+    cameraShake *= 0.9;
+    if (cameraShake < 0.5) cameraShake = 0;
+  }
+
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  drawGround();
+
+  // cracks
+  cracks = cracks.filter(c => c.opacity > 0);
+  cracks.forEach(c => { c.update(); c.draw(); });
+
+  // shockwaves
+  shockwaves = shockwaves.filter(s => s.opacity > 0);
+  shockwaves.forEach(s => { s.update(); s.draw(); });
+
+  // creeps
+  creeps = creeps.filter(c => c.opacity > 0);
+  creeps.forEach(c => { c.update(); c.draw(); });
+
+  // particles
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => { p.update(); p.draw(); });
+
+  drawPlayer();
+
+  ctx.restore();
+
+  // mana regen
+  if (cooldown > 0) {
+    cooldown--;
+    mana = Math.min(100, (1 - cooldown / 300) * 100);
+    document.getElementById('slam-btn').classList.add('cooldown');
+    document.getElementById('cooldown-text').textContent = (cooldown / 60).toFixed(1) + 's';
+  } else {
+    mana = 100;
+    document.getElementById('slam-btn').classList.remove('cooldown');
+    document.getElementById('cooldown-text').textContent = 'READY';
+  }
+
+  document.getElementById('mana-bar').style.width = mana + '%';
+
+  requestAnimationFrame(update);
+}
+
+update();
+</script>
+</body>
+</html>
